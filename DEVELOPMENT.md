@@ -13,12 +13,13 @@
 **Goal:** Validate the personality feels alive before building anything physical.
 
 ### Tasks
-- [ ] Design LLM system prompt for Koji's personality
-- [ ] Build CLI simulator that accepts fake sensor input
+- [x] Design LLM system prompt for Koji's personality
+- [x] Build CLI simulator that accepts fake sensor input
 - [ ] Define JSON schema for sensor input and action output
-- [ ] Implement emotional state machine (mood persistence, decay, transitions)
-- [ ] Implement action vocabulary (constrained outputs)
-- [ ] Test various scenarios (loud noise, music, familiar face, stranger)
+- [x] Implement emotional state machine (mood persistence, decay, transitions)
+- [x] Implement action vocabulary (constrained outputs)
+- [x] Test various scenarios (loud noise, music, familiar face, stranger)
+- [x] Implement variation engine (weighted random, micro-behaviors, mood echoes)
 - [ ] Tune personality until it feels right
 - [ ] Benchmark local LLM options (Llama 3.2 1B vs Phi-3-mini vs Llama 3.2 3B)
 - [ ] Design cloud filter prompt ("is this novel enough?")
@@ -30,8 +31,15 @@
 - JSON for all I/O
 - Bubble Tea for interactive TUI (optional)
 
-### LLM Architecture to Validate
+### Architecture
 ```
+Sensor Event → Emotional State Machine → Variation Engine (action selection)
+                     ↓                          ↓
+              Mood Echoes ←──────────── Records mood changes
+                                              ↓
+                                    Action + Modifier + Micro-behavior
+
+Optional LLM path (for complex/novel situations):
 Sensor Event → Emotional State Machine → Local LLM (action selection)
                                       ↓
                             Cloud Filter ("is this novel?")
@@ -39,12 +47,21 @@ Sensor Event → Emotional State Machine → Local LLM (action selection)
                             Cloud LLM (if needed)
 ```
 
+### Variation Engine (Implemented)
+Instead of asking an LLM to pick actions, the variation engine uses:
+- **Weighted random selection**: Each mood has actions with probability weights
+- **Action modifiers**: Same action varies by intensity (slow/fast/frantic/gentle)
+- **Micro-behaviors**: Idle animations (ear twitches, sighs, weight shifts)
+- **Mood echoes**: Past moods bleed into current behavior (still jumpy after being scared)
+
 ### Deliverable
 A terminal app where you can type sensor events and get believable pet reactions. Should validate:
 1. Emotional state transitions feel natural
-2. Local LLM responses are fast enough (<500ms)
-3. Cloud filter correctly identifies novel vs routine situations
-4. Action vocabulary covers needed behaviors
+2. Variation engine produces lifelike, non-repetitive behavior
+3. Action vocabulary covers needed behaviors
+4. Mood echoes create realistic recovery from emotional states
+5. (Optional) Local LLM responses are fast enough (<500ms) for complex situations
+6. (Optional) Cloud filter correctly identifies novel vs routine situations
 
 ---
 
@@ -164,7 +181,7 @@ Koji recognizes owner, gets excited. Wary of strangers. Remembers objects.
 - [ ] Tune emotional state transitions
 - [ ] Balance local vs cloud decision making
 - [ ] Optimize response latency (should feel instant)
-- [ ] Add behavioral variety (same input, slightly different reactions)
+- [x] Add behavioral variety (same input, slightly different reactions) — variation engine
 - [ ] Long-term mood (had a good day vs rough day)
 - [ ] Power management and battery monitoring
 - [ ] Optimize LLM inference (consider llama.cpp if Ollama too slow)
@@ -251,6 +268,7 @@ A complete, coherent robot pet personality.
 | 2026-02 | Reactive short-term memory for Phase 1-2 | No SLAM, no precise localization. Just "don't repeat the same bump." Simple and good enough. |
 | 2026-02 | Defer landmark-based zones to Phase 5 | Need vision working first. Will use visual landmarks instead of coordinates. |
 | 2026-02 | Personality in prompt, mood in context | Personality is constant (curious, excitable), mood is variable (frightened, happy). Separation of concerns. |
+| 2026-02 | Variation engine over LLM for action selection | LLM is overkill for picking from a small action list. Weighted random + mood echoes feels more alive with zero latency. LLM reserved for truly complex situations. |
 
 ---
 
