@@ -240,45 +240,153 @@ A complete, coherent robot pet personality.
 
 ---
 
-## Hardware Shopping List (Draft)
+## Hardware Architecture
 
-### Compute
-| Item | Purpose | Notes |
-|------|---------|-------|
-| Raspberry Pi 5 8GB | Main brain | 8GB required for local LLM |
-| Coral USB Accelerator | ML boost | Optional, helps with TFLite vision |
-| MicroSD card (64GB+) | Storage | Fast one, need space for LLM models |
-| NVMe SSD (optional) | Faster storage | Pi 5 has PCIe, helps LLM load times |
+### Two-Board Design
+```
+┌─────────────────────────────────────────────────────────────┐
+│  "High Brain" - Raspberry Pi 5                             │
+│  - Camera + face recognition                               │
+│  - Microphone + audio classification                       │
+│  - Personality engine + variation engine                   │
+│  - LLM (optional, for complex situations)                  │
+│  - Web UI for enrollment                                   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ UART Serial (simple text commands)
+                       │ e.g., "servo:tail:90:fast\n"
+┌──────────────────────▼──────────────────────────────────────┐
+│  "Low Brain" - ESP32                                        │
+│  - Cliff sensors (analog, real-time)                       │
+│  - Ultrasonic sensors                                      │
+│  - Bump switches                                           │
+│  - Servo control (PWM)                                     │
+│  - Motor control                                           │
+│  - SAFETY OVERRIDES (runs even if Pi crashes)              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Sensors
-| Item | Purpose | Notes |
-|------|---------|-------|
-| Pi Camera v2/v3 or USB webcam | Vision | Wide angle helpful |
-| USB microphone or I2S MEMS | Audio | I2S is cleaner |
-| IR distance sensors (x3-4) | Cliff detection | Sharp GP2Y0A21YK or similar |
-| Ultrasonic sensor (x2) | Obstacle detection | HC-SR04 |
-| Bump switches (x2) | Failsafe | Microswitch type |
+**Why two boards?**
+- Safety isolation: ESP32 stops motors at cliff edge even if Pi is frozen
+- Real-time control: Microcontrollers handle tight timing loops
+- Cleaner separation: High-level decisions vs low-level actuation
+- Simpler wiring: All sensors to one board, one cable to Pi
+- Hot-swap brains: Upgrade Pi to Jetson later without rewiring
 
-### Actuators
-| Item | Purpose | Notes |
-|------|---------|-------|
-| Servo motors (x3-5) | Tail, ears, head | SG90 or MG90S |
-| DC motors + driver | Locomotion | Depends on chassis |
-| Small speaker | Sounds | 3W is plenty |
+---
 
-### Chassis
-| Option | Pros | Cons |
-|--------|------|------|
-| Buy kit (e.g., PiDog, Freenove) | Fast start | Less custom |
-| 3D print custom | Full control | Need printer, design skills |
-| Hack a toy | Cheap, fun | Unpredictable |
+## Hardware Shopping List
+
+### High Brain (Perception + Personality)
+| Item | Purpose | Est. Price | Notes |
+|------|---------|------------|-------|
+| Raspberry Pi 5 4GB | Main compute | $55 | 4GB enough now that GPIO moved to ESP32 |
+| MicroSD card 64GB | Storage | $12 | Fast A2 card, for OS + models |
+| Pi Camera v3 | Vision | $25 | Wide angle version preferred |
+| USB microphone | Audio input | $10 | Or I2S MEMS for cleaner signal |
+| USB speaker/DAC | Audio output | $10 | Small powered speaker |
+| **Subtotal** | | **~$112** | |
+
+### Low Brain (Sensors + Actuators)
+| Item | Purpose | Est. Price | Notes |
+|------|---------|------------|-------|
+| ESP32-WROOM-32E module | Sensor/motor controller | $5 | Classic ESP32, best library support |
+| ESP32 dev board | Development | $8 | ESP32-DevKitC or similar, has USB |
+| IR distance sensors x4 | Cliff detection | $12 | Sharp GP2Y0A21YK (analog) |
+| Ultrasonic sensors x2 | Obstacle detection | $4 | HC-SR04 |
+| Bump switches x2 | Failsafe | $2 | Microswitch, normally-closed |
+| Servo motors x5 | Tail, ears, head tilt | $15 | SG90 (plastic) or MG90S (metal gear) |
+| DC motors x2 + driver | Locomotion | $15 | N20 gear motors + TB6612 driver |
+| PCA9685 PWM driver | Servo control | $5 | 16-channel, frees up ESP32 pins |
+| Level shifter | Pi-ESP32 comms | $2 | 3.3V Pi to 3.3V ESP32 (may not need) |
+| **Subtotal** | | **~$68** | |
 
 ### Power
-| Item | Purpose | Notes |
-|------|---------|-------|
-| LiPo battery | Main power | 5V, 3A+ output |
-| Battery management board | Charging, protection | |
-| Power bank (simpler option) | Easier but bulkier | |
+| Item | Purpose | Est. Price | Notes |
+|------|---------|------------|-------|
+| 2S LiPo battery (7.4V) | Main power | $20 | 2000-3000mAh, 18650 cells work too |
+| BMS board | Battery protection | $5 | 2S balance charging |
+| 5V 3A buck converter | Pi power | $5 | From 7.4V LiPo |
+| 5V regulator for servos | Servo power | $3 | Separate to avoid brownouts |
+| Power switch | On/off | $2 | |
+| **Subtotal** | | **~$35** | |
+
+### Chassis & Misc
+| Item | Purpose | Est. Price | Notes |
+|------|---------|------------|-------|
+| Chassis/frame | Structure | $20-50 | 3D print, kit, or hacked toy |
+| Wheels x2 + caster | Mobility | $8 | Depends on chassis |
+| Wires, connectors | Assembly | $10 | JST, Dupont, etc. |
+| Standoffs, screws | Mounting | $5 | M2.5 and M3 |
+| **Subtotal** | | **~$45-75** | |
+
+### Total Estimate
+| Category | Price |
+|----------|-------|
+| High Brain | ~$112 |
+| Low Brain | ~$68 |
+| Power | ~$35 |
+| Chassis (3D printed) | ~$15 (filament) |
+| Misc (wires, screws) | ~$15 |
+| **Total** | **~$245** |
+
+### Optional Upgrades
+| Item | Purpose | Est. Price | Notes |
+|------|---------|------------|-------|
+| Coral USB Accelerator | ML acceleration | $60 | If face detection is too slow |
+| NVMe SSD + adapter | Faster storage | $30 | If LLM loading is too slow |
+| Pi 5 8GB (instead of 4GB) | More RAM | +$20 | If running larger LLM models |
+| Better servos (MG996R) | More torque | +$20 | If robot is heavier |
+
+### ESP32 Pin Allocation (Draft)
+```
+Analog (ADC1 - can use with WiFi):
+  GPIO32 - Cliff sensor front-left
+  GPIO33 - Cliff sensor front-right
+  GPIO34 - Cliff sensor rear-left
+  GPIO35 - Cliff sensor rear-right
+
+Digital:
+  GPIO16 - Ultrasonic 1 trigger
+  GPIO17 - Ultrasonic 1 echo
+  GPIO18 - Ultrasonic 2 trigger
+  GPIO19 - Ultrasonic 2 echo
+  GPIO21 - Bump switch left (INPUT_PULLUP)
+  GPIO22 - Bump switch right (INPUT_PULLUP)
+
+I2C (for PCA9685 PWM driver):
+  GPIO21 - SDA
+  GPIO22 - SCL
+
+Motor control:
+  GPIO25 - Motor A PWM
+  GPIO26 - Motor A direction
+  GPIO27 - Motor B PWM
+  GPIO14 - Motor B direction
+
+UART (to Pi):
+  GPIO1  - TX (to Pi RX)
+  GPIO3  - RX (from Pi TX)
+```
+
+### Chassis (3D Printed)
+Custom 3D printed chassis is the plan. Parts to design/print:
+
+| Part | Notes |
+|------|-------|
+| Main body shell | Houses Pi, ESP32, battery |
+| Sensor mounts | Adjustable angle for cliff/ultrasonic sensors |
+| Ear mechanisms | Servo-driven, expressive |
+| Tail mount + linkage | Wagging mechanism |
+| Head/face plate | Camera + "eyes", tilt servo mount |
+| Wheel hubs | Interface with motors |
+| Cable management | Internal routing, strain relief |
+
+**Design considerations:**
+- Easy access to Pi/ESP32 for debugging
+- Ventilation for Pi (it runs warm)
+- Battery compartment with access for charging
+- Snap-fit or screws for assembly
+- Target size: 15-20cm ("chunky hamster")
 
 ---
 
@@ -297,6 +405,10 @@ A complete, coherent robot pet personality.
 | 2026-02 | Variation engine over LLM for action selection | LLM is overkill for picking from a small action list. Weighted random + mood echoes feels more alive with zero latency. LLM reserved for truly complex situations. |
 | 2026-02 | Embedding-based face recognition | No training needed - use pre-trained model for embeddings, cosine similarity for matching. Simple on-device enrollment via web UI. |
 | 2026-02 | Local web UI for face enrollment | Simpler than a mobile app, no app store needed. Just visit http://koji.local:8080 and look at the camera. |
+| 2026-02 | Two-board architecture (Pi + ESP32) | Separates high-level perception/personality from real-time sensor/motor control. Safety isolation, cleaner wiring, can upgrade Pi without rewiring. |
+| 2026-02 | ESP32-WROOM-32E for low brain | Classic ESP32 has more ADC channels (18) and PWM (16) than newer variants. Best documented, most libraries. RISC-V variants (C3, C6) have fewer analog pins. |
+| 2026-02 | Pi 5 4GB (not 8GB) for high brain | With GPIO offloaded to ESP32, 4GB is sufficient. LLM is optional/rare now that variation engine handles most decisions. Save $20. |
+| 2026-02 | 3D printed chassis | Custom fit for all components, can iterate on design, proper creature aesthetic instead of robot kit look. |
 
 ---
 
@@ -323,7 +435,14 @@ A complete, coherent robot pet personality.
 - [Phi-3](https://azure.microsoft.com/en-us/blog/introducing-phi-3/) — Microsoft small models
 - [GGUF Model Format](https://github.com/ggerganov/ggml) — quantized model format
 
+### ESP32 / Low Brain
+- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/) — official ESP32 framework
+- [Arduino-ESP32](https://github.com/espressif/arduino-esp32) — Arduino core for ESP32 (easier to start)
+- [ESP32 Pinout Reference](https://randomnerdtutorials.com/esp32-pinout-reference-gpios/)
+- [PCA9685 Library](https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library) — for servo control board
+
 ### Development
 - [Bubble Tea (Go TUI)](https://github.com/charmbracelet/bubbletea) — for debug/control interface
-- [periph.io](https://periph.io/) — Go GPIO library
+- [periph.io](https://periph.io/) — Go GPIO library (Pi side)
+- [tinygo](https://tinygo.org/) — Go for microcontrollers (potential ESP32 option)
 
