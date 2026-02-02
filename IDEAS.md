@@ -193,27 +193,97 @@ Real animals are clumsy but not idiots. Koji should be the same.
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Spatial Memory Requirements
+### Spatial Memory Strategy
 
-Koji needs to remember:
-- **Obstacle map**: Where are the things I've bumped into?
-- **Edge map**: Where are the cliffs/edges I've detected?
-- **Danger zones**: Places where bad things happened
-- **Safe zones**: Good hiding spots, familiar areas
+#### The Problem
 
-This memory persists across restarts and updates as Koji explores.
+Full SLAM (Simultaneous Localization and Mapping) is overkill for a pet robot. It's complex, needs good sensors (ideally lidar), and is computationally expensive. We're building a pet, not a warehouse robot.
+
+#### Phased Approach
+
+**Phase 1-2: Reactive + Short-Term Memory (Option 3)**
+
+No global map. Just remember recent collisions and avoid repeating the exact same mistake.
+
+```go
+type RecentObstacle struct {
+    Direction    Direction     // where we were heading
+    MovementType MovementType  // forward, turning, fleeing, etc.
+    Timestamp    time.Time
+}
+
+type ShortTermMemory struct {
+    recentBumps []RecentObstacle  // last N collisions
+    ttl         time.Duration     // forget after this long (e.g., 30s)
+}
+
+// "I just bumped something while fleeing forward-left. Don't do that again."
+func (m *ShortTermMemory) ShouldAvoid(dir Direction, movement MovementType) bool {
+    for _, bump := range m.recentBumps {
+        if bump.Direction == dir && bump.MovementType == movement {
+            if time.Since(bump.Timestamp) < m.ttl {
+                return true
+            }
+        }
+    }
+    return false
+}
+```
+
+- Pros: Dead simple, no localization needed
+- Cons: No persistent map, won't remember obstacles across restarts
+- Good enough for: "Don't immediately hit the same thing twice"
+
+**Phase 5+: Landmark-Based Zones (Future)**
+
+Once vision is working, graduate to zone-based memory using visual landmarks.
+
+```go
+type Zone struct {
+    ID         string
+    Landmarks  []string  // recognized visual features
+    Hazards    []Hazard  // cliffs, obstacles encountered here
+    SafePaths  []Direction
+}
+
+// "I'm near the desk (I can see the desk leg pattern). 
+// Last time I was here, there was a cliff to my left."
+```
+
+- Pros: Doesn't need precise localization, robust to drift
+- Cons: Needs decent vision processing
+- Deferred to: Phase 5 (Recognition & Memory)
+
+#### What We're NOT Doing
+
+- Full SLAM with occupancy grids
+- Precise odometry-based positioning
+- Lidar mapping
+- Any of that "real robotics" shit that would take 6 months
+
+#### Summary
+
+| Phase | Memory Type | Complexity | Capability |
+|-------|-------------|------------|------------|
+| 1-2 | Reactive + short-term | Low | Don't repeat immediate mistakes |
+| 5+ | Landmark-based zones | Medium | Remember areas, not coordinates |
+| Never | Full SLAM | High | Overkill for a pet |
 
 ### First-Time vs Repeat Collisions
 
 ```go
-// Pseudocode for collision response
-func handleCollision(obstacle Obstacle) {
-    if spatialMemory.IsKnown(obstacle.Position) {
-        // We knew this was here - this is a bug, not charm
-        log.Error("hit known obstacle - pathfinding failed")
+// With short-term memory approach
+func handleCollision(dir Direction, movement MovementType) {
+    if shortTermMemory.ShouldAvoid(dir, movement) {
+        // We JUST hit something going this way - pathfinding bug
+        log.Error("repeated collision in same direction - shouldn't happen")
     } else {
         // First time hitting this - acceptable, learn from it
-        spatialMemory.Add(obstacle)
+        shortTermMemory.Add(RecentObstacle{
+            Direction:    dir,
+            MovementType: movement,
+            Timestamp:    time.Now(),
+        })
         playSound("surprised_bonk")  // cute
     }
 }
@@ -327,6 +397,31 @@ LLMs don't have emotions — they're stateless text predictors. But we can get e
 2. **System prompt engineering** — Give personality + current emotional context.
 3. **Constrained outputs** — Don't free-form. Vocabulary of actions, pick from them.
 4. **Code-driven mood transitions** — LLM doesn't decide mood changes, rules do.
+
+### Personality vs Mood
+
+**Personality** = constant traits, the "who is Koji" layer. Baked into system prompt.
+**Mood** = temporary emotional state, changes based on events. Passed as context.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  PERSONALITY (constant)                                     │
+│  - Curious by nature                                        │
+│  - Easily excited                                           │
+│  - A little clumsy but enthusiastic                         │
+│  - Loves music                                              │
+│  - Wary of strangers at first                               │
+│  - NOT a helpful assistant, just a pet                      │
+├─────────────────────────────────────────────────────────────┤
+│  MOOD (variable)                                            │
+│  - Current: frightened                                      │
+│  - Intensity: 0.8                                           │
+│  - Duration: 3 seconds                                      │
+│  - Decaying toward: cautious → curious (baseline)           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+A frightened Koji is still curious by nature — he'll peek out to investigate after hiding, rather than cowering forever. Personality shapes *how* he experiences each mood.
 
 ### Two-Tier LLM Architecture
 

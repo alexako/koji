@@ -248,6 +248,9 @@ A complete, coherent robot pet personality.
 | 2026-02 | Ollama for initial LLM runtime | Easy setup, good for prototyping. Switch to llama.cpp if perf needed. |
 | 2026-02 | Emotional state in code, not LLM | Deterministic mood transitions are more reliable. LLM just picks actions. |
 | 2026-02 | Target chassis size 15-20cm | Minimum viable size for all components. "Chunky hamster" aesthetic. |
+| 2026-02 | Reactive short-term memory for Phase 1-2 | No SLAM, no precise localization. Just "don't repeat the same bump." Simple and good enough. |
+| 2026-02 | Defer landmark-based zones to Phase 5 | Need vision working first. Will use visual landmarks instead of coordinates. |
+| 2026-02 | Personality in prompt, mood in context | Personality is constant (curious, excitable), mood is variable (frightened, happy). Separation of concerns. |
 
 ---
 
