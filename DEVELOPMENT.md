@@ -156,20 +156,46 @@ Koji notices movement and faces, reacts accordingly.
 **Goal:** Koji knows who's who and remembers things.
 
 ### Tasks
-- [ ] Implement face recognition (not just detection)
-- [ ] Build face database (owner vs stranger vs known friends)
+- [x] Implement face recognition (embedding-based, not just detection)
+- [x] Build face database (owner vs stranger vs known friends)
+- [x] Add emotion detection for recognized faces
+- [x] Create local web UI for face enrollment
 - [ ] Add object recognition for interesting things
 - [ ] Implement "allowlist" filter — only cloud-call for unknowns
 - [ ] Add location memory (favorite spots, danger zones)
 - [ ] Persist memory across restarts
+- [ ] Integrate face recognition with personality engine
+
+### Face Recognition Architecture (Implemented)
+```
+Camera Frame → Face Detection → Face Embedding (128/512-dim vector)
+                                      ↓
+                              Cosine Similarity vs FaceDB
+                                      ↓
+                    ┌─────────────────┴─────────────────┐
+                    ↓                                   ↓
+            Match (>0.6 similarity)            No Match (<0.6)
+                    ↓                                   ↓
+            Return Person + Emotion            Return "stranger"
+```
+
+### Owner Enrollment Flow
+No training needed! Uses pre-trained face embedding model:
+1. User visits `http://koji.local:8080`
+2. Enters name, selects "Owner" relationship
+3. Looks at camera for ~10 seconds (captures 5-10 samples)
+4. System extracts embeddings and stores in local JSON database
+5. Done - Koji now recognizes owner
 
 ### Tech
-- Face embeddings (dlib, or cloud API)
-- Local storage (SQLite or JSON)
-- GCP Vision API for unknown objects
+- Face detection: MediaPipe or OpenCV (runs on Pi)
+- Face embeddings: InsightFace or dlib (one-time inference per face)
+- Emotion detection: FER or DeepFace (happy/sad/angry/surprised/neutral)
+- Local storage: JSON file with embeddings
+- Enrollment UI: Embedded web server at `http://koji.local:8080`
 
 ### Deliverable
-Koji recognizes owner, gets excited. Wary of strangers. Remembers objects.
+Koji recognizes owner, gets excited. Wary of strangers. Reads owner's mood and reacts accordingly.
 
 ---
 
@@ -269,6 +295,8 @@ A complete, coherent robot pet personality.
 | 2026-02 | Defer landmark-based zones to Phase 5 | Need vision working first. Will use visual landmarks instead of coordinates. |
 | 2026-02 | Personality in prompt, mood in context | Personality is constant (curious, excitable), mood is variable (frightened, happy). Separation of concerns. |
 | 2026-02 | Variation engine over LLM for action selection | LLM is overkill for picking from a small action list. Weighted random + mood echoes feels more alive with zero latency. LLM reserved for truly complex situations. |
+| 2026-02 | Embedding-based face recognition | No training needed - use pre-trained model for embeddings, cosine similarity for matching. Simple on-device enrollment via web UI. |
+| 2026-02 | Local web UI for face enrollment | Simpler than a mobile app, no app store needed. Just visit http://koji.local:8080 and look at the camera. |
 
 ---
 
@@ -281,6 +309,10 @@ A complete, coherent robot pet personality.
 
 ### ML & Vision
 - [TensorFlow Lite for Pi](https://www.tensorflow.org/lite/guide/python)
+- [MediaPipe Face Detection](https://developers.google.com/mediapipe/solutions/vision/face_detector) — fast on-device face detection
+- [InsightFace](https://github.com/deepinsight/insightface) — face recognition embeddings
+- [DeepFace](https://github.com/serengil/deepface) — emotion detection + face recognition
+- [dlib](http://dlib.net/) — classic face recognition library
 - [GCP Vision API](https://cloud.google.com/vision)
 - [GCP Vertex AI](https://cloud.google.com/vertex-ai)
 
