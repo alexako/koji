@@ -21,7 +21,7 @@ type Client struct {
 // Config holds LLM client configuration.
 type Config struct {
 	BaseURL string        // Ollama API URL (default: http://localhost:11434)
-	Model   string        // Model name (default: llama3.2:1b)
+	Model   string        // Model name (default: phi3:mini)
 	Timeout time.Duration // Request timeout (default: 30s)
 }
 
@@ -29,7 +29,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		BaseURL: "http://localhost:11434",
-		Model:   "llama3.2:1b",
+		Model:   "phi3:mini",
 		Timeout: 30 * time.Second,
 	}
 }
@@ -40,7 +40,7 @@ func NewClient(cfg Config) *Client {
 		cfg.BaseURL = "http://localhost:11434"
 	}
 	if cfg.Model == "" {
-		cfg.Model = "llama3.2:1b"
+		cfg.Model = "phi3:mini"
 	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 30 * time.Second
@@ -121,6 +121,13 @@ func (c *Client) generate(ctx context.Context, prompt string, jsonFormat bool) (
 	return result.Response, nil
 }
 
+// tagsResponse is the response format from Ollama's /api/tags endpoint.
+type tagsResponse struct {
+	Models []struct {
+		Name string `json:"name"`
+	} `json:"models"`
+}
+
 // Ping checks if the LLM backend is available.
 func (c *Client) Ping(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/tags", nil)
@@ -139,6 +146,40 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// CheckModel verifies the configured model is available and returns available models if not.
+func (c *Client) CheckModel(ctx context.Context) (bool, []string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/tags", nil)
+	if err != nil {
+		return false, nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, nil, fmt.Errorf("connecting to Ollama: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+
+	var tags tagsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		return false, nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	var available []string
+	found := false
+	for _, m := range tags.Models {
+		available = append(available, m.Name)
+		if m.Name == c.model {
+			found = true
+		}
+	}
+
+	return found, available, nil
 }
 
 // Model returns the configured model name.

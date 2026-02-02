@@ -24,7 +24,7 @@ type app struct {
 func main() {
 	// Flags
 	ollamaURL := flag.String("ollama", "http://localhost:11434", "Ollama API URL")
-	model := flag.String("model", "llama3.2:1b", "LLM model to use")
+	model := flag.String("model", "phi3:mini", "LLM model to use")
 	noLLM := flag.Bool("no-llm", false, "Disable LLM, use only deterministic actions")
 	flag.Parse()
 
@@ -56,10 +56,30 @@ func main() {
 			fmt.Println()
 			app.useLLM = false
 		} else {
-			app.engine = llm.NewPersonalityEngine(app.llmClient)
-			fmt.Printf("Connected to Ollama (model: %s)\n", *model)
-			fmt.Println("LLM will select actions based on personality.")
-			fmt.Println()
+			// Check if the model is available
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			found, available, err := app.llmClient.CheckModel(ctx)
+			cancel()
+
+			if err != nil {
+				fmt.Printf("Warning: Could not check models: %v\n", err)
+				fmt.Println("Continuing anyway...")
+			} else if !found {
+				fmt.Printf("Warning: Model '%s' not found.\n", *model)
+				fmt.Printf("Available models: %v\n", available)
+				fmt.Printf("Install with: ollama pull %s\n", *model)
+				fmt.Println()
+				fmt.Println("Running in deterministic mode (no LLM).")
+				fmt.Println()
+				app.useLLM = false
+			}
+
+			if app.useLLM {
+				app.engine = llm.NewPersonalityEngine(app.llmClient)
+				fmt.Printf("Connected to Ollama (model: %s)\n", *model)
+				fmt.Println("LLM will select actions based on personality.")
+				fmt.Println()
+			}
 		}
 	} else {
 		fmt.Println("Running in deterministic mode (--no-llm)")
