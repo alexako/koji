@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alex/koji/internal/api"
 	"github.com/alex/koji/internal/llm"
 	"github.com/alex/koji/internal/personality"
 )
@@ -18,8 +19,20 @@ type app struct {
 	variation    *personality.VariationEngine
 	llmClient    *llm.Client
 	engine       *llm.PersonalityEngine
+	apiServer    *api.Server
 	recentEvents []personality.Event
 	useLLM       bool
+	lastAction   string
+}
+
+// GetState implements api.StateProvider
+func (a *app) GetState() *personality.EmotionalState {
+	return a.state
+}
+
+// GetRecentAction implements api.StateProvider
+func (a *app) GetRecentAction() string {
+	return a.lastAction
 }
 
 func main() {
@@ -27,6 +40,7 @@ func main() {
 	ollamaURL := flag.String("ollama", "http://localhost:11434", "Ollama API URL")
 	model := flag.String("model", "phi3:mini", "LLM model to use")
 	noLLM := flag.Bool("no-llm", false, "Disable LLM, use only deterministic actions")
+	apiAddr := flag.String("api", ":8080", "API server address for external displays")
 	flag.Parse()
 
 	app := &app{
@@ -37,6 +51,16 @@ func main() {
 	}
 
 	fmt.Println("=== Koji Emotional State Simulator ===")
+	fmt.Println()
+
+	// Start API server for external displays (ESP32, etc.)
+	app.apiServer = api.NewServer(*apiAddr, app, nil) // nil eventHandler - CLI handles events
+	go func() {
+		fmt.Printf("API server starting on %s\n", *apiAddr)
+		if err := app.apiServer.Start(context.Background()); err != nil {
+			fmt.Printf("API server error: %v\n", err)
+		}
+	}()
 	fmt.Println()
 
 	// Try to connect to LLM if enabled
@@ -207,10 +231,14 @@ func (a *app) selectAndPrintAction(eventCtx personality.EventContext) {
 		resp := a.engine.SelectActionWithFallback(ctx, req)
 		fmt.Printf("  Koji chooses: %s\n", resp.Action)
 		fmt.Printf("  Reason: %s\n", resp.Reason)
+		a.lastAction = resp.Action
+		a.apiServer.SetLastAction(resp.Action)
 	} else {
 		// Use variation engine for lifelike behavior
 		action := a.variation.SelectAction(a.state)
 		fmt.Printf("  Koji chooses: %s (%s)\n", action.Action, action.Modifier)
+		a.lastAction = string(action.Action)
+		a.apiServer.SetLastAction(string(action.Action))
 
 		// Show any active mood echoes affecting behavior
 		echoes := a.variation.GetActiveEchoes()
