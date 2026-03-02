@@ -4,7 +4,7 @@ services:
     container_name: koji-brain
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8585:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
       interval: 30s
