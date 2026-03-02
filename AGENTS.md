@@ -4,7 +4,10 @@
 
 ## Project Overview
 
-Koji is an AI-powered robot pet built primarily in **Go**, running on a Raspberry Pi. It uses local ML (TensorFlow Lite, OpenCV) for sensing and a local LLM for personality decisions.
+Koji is an AI-powered robot pet with a distributed architecture:
+- **Brain Server** (Go) - Runs on a home server, handles emotional state and LLM decisions
+- **Body** (Go) - Runs on Raspberry Pi, handles sensors and actuators
+- **Face Display** (C++/Arduino) - Runs on ESP32 with GC9A01 round TFT, animated eyes
 
 **Core Philosophy:**
 1. Don't die (safety first - always local, zero latency)
@@ -13,21 +16,85 @@ Koji is an AI-powered robot pet built primarily in **Go**, running on a Raspberr
 
 ---
 
+## Architecture
+
+```
+┌─────────────────┐                    ┌─────────────────┐
+│   Brain Server  │     HTTP/JSON      │     ESP32       │
+│   (theserver)   │◄──────────────────►│  (face display) │
+│   Port 8585     │   GET /api/state   │  192.168.1.194  │
+│                 │   (poll 500ms)     └─────────────────┘
+│  - Mood state   │     
+│  - Event proc   │     HTTP/JSON      ┌─────────────────┐
+│  - Decay loop   │◄──────────────────►│  Sensors (TBD)  │
+│  - Face emotion │   POST /api/event  │  (desktop/Pi)   │
+└─────────────────┘                    └─────────────────┘
+        │
+        │  Gitea Actions (auto-deploy on push to main)
+        ▼
+┌─────────────────┐
+│   Docker        │
+│   koji-brain    │
+└─────────────────┘
+```
+
+**Current Deployment:**
+- Brain server runs on `theserver` at `http://192.168.1.41:8585`
+- ESP32 face display polls `/api/state` every 500ms
+- CI/CD via Gitea Actions auto-deploys on push to main
+
+**API Endpoints (Brain Server):**
+- `GET /api/state` - Current mood, intensity, face emotion, emotion_index
+- `POST /api/event` - Send sensor events, returns full state for immediate reaction
+- `GET /health` - Health check
+
+---
+
 ## Build & Run Commands
 
+### Brain Server (runs on theserver)
+
 ```bash
-# Build the main binary
+# Build the brain server
+go build -o brain ./cmd/brain
+
+# Run the brain server
+./brain -addr :8080
+
+# Build for Linux server (cross-compile)
+GOOS=linux GOARCH=amd64 go build -o brain ./cmd/brain
+```
+
+### CLI Simulator (for testing)
+
+```bash
+# Build the CLI simulator
 go build -o koji ./cmd/koji
 
-# Run the application
-./koji
+# Run with LLM support
+./koji -ollama http://localhost:11434 -model phi3:mini
 
-# Run with verbose logging
-./koji -v
-
-# Build for Raspberry Pi (cross-compile from dev machine)
-GOOS=linux GOARCH=arm64 go build -o koji ./cmd/koji
+# Run without LLM (variation engine only)
+./koji -no-llm
 ```
+
+### ESP32 Face Display
+
+```bash
+# Build and upload (from esp32-face/ directory)
+cd esp32-face
+pio run -t upload
+
+# Monitor serial output
+pio device monitor
+```
+
+**Setup:**
+1. Copy `src/config.h` to `src/config_local.h`
+2. Edit WiFi credentials and brain server URL
+3. Flash with PlatformIO
+
+---
 
 ## Testing
 
@@ -75,20 +142,83 @@ golangci-lint run --fix
 ```
 koji/
 ├── cmd/
-│   └── koji/           # Main entry point
+│   ├── koji/           # CLI simulator for testing
+│   │   └── main.go
+│   └── brain/          # Brain server (runs on theserver)
 │       └── main.go
 ├── internal/           # Private packages (not importable externally)
-│   ├── personality/    # LLM integration, emotional state machine
+│   ├── api/            # HTTP API server
+│   ├── brain/          # Brain orchestrator (decay loop, event handling)
+│   ├── personality/    # Emotional state machine, mood transitions
+│   │   ├── mood.go         # Mood types and EmotionalState
+│   │   ├── emotions.go     # Mood-to-face-emotion mapping
+│   │   ├── events.go       # Sensor event types
+│   │   ├── transitions.go  # Event→mood transition rules
+│   │   ├── actions.go      # Available actions per mood
+│   │   └── variation.go    # Lifelike variation engine
+│   ├── llm/            # LLM client and personality engine
+│   ├── vision/         # Face recognition, enrollment
 │   ├── sensors/        # Camera, microphone, IR, ultrasonic
 │   ├── actuators/      # Motors, servos, speaker
 │   ├── safety/         # Safety controller (overrides all behavior)
 │   └── config/         # Configuration loading
-├── pkg/                # Public packages (if any)
+├── esp32-face/         # ESP32 face display (PlatformIO project)
+│   ├── platformio.ini
+│   └── src/
+│       ├── main.cpp        # Main loop, WiFi, brain API client
+│       ├── config.h        # Default config (copy to config_local.h)
+│       ├── Face.cpp/h      # Face rendering
+│       ├── Eye.cpp/h       # Eye rendering
+│       ├── FaceEmotions.hpp    # Emotion enum (18 emotions)
+│       ├── FaceBehavior.cpp/h  # Emotion transitions
+│       └── ...             # Animation helpers
 ├── configs/            # YAML/JSON configuration files
 ├── scripts/            # Build, deploy, dev scripts
-├── testdata/           # Test fixtures
 └── docs/               # Additional documentation
 ```
+
+---
+
+## Emotional State System
+
+### Moods (internal)
+7 moods with intensity (0.0-1.0):
+- `curious` - baseline state
+- `excited` - new person, play time
+- `startled` - sudden stimulus, brief
+- `frightened` - escalated fear
+- `happy` - music, familiar faces
+- `sleepy` - quiet environment
+- `cautious` - wary, recovering from fear
+
+### Face Emotions (ESP32)
+18 emotions mapped from moods + intensity:
+- Normal, Happy, Glee, Sad, Worried, Focused, Annoyed, Surprised
+- Skeptic, Frustrated, Unimpressed, Sleepy, Suspicious, Squint
+- Angry, Furious, Scared, Awe
+
+### Event Types
+```go
+// Sound events
+EventLoudNoise, EventMusic, EventSpeech, EventSilence, EventRhythm
+
+// Vision events
+EventFamiliarFace, EventUnknownFace, EventMotionDetected, EventUnknownObject
+
+// Physical events
+EventPetted, EventPoked, EventPickedUp
+
+// Time-based events
+EventTimePassedShort, EventTimePassedMedium, EventTimePassedLong
+```
+
+### Mood Decay
+Moods decay toward baseline (curious) over time:
+- Startled → Cautious (5s) → Curious (20s)
+- Frightened → Cautious (15s) → Curious (20s)
+- Excited → Happy (30s) → Curious (45s)
+- Happy → Curious (45s)
+- Sleepy → Curious (60s)
 
 ---
 
@@ -271,8 +401,6 @@ func TestEmotionalState_UpdateMood(t *testing.T) {
 
 ## Git Workflow
 
-- **Never commit to main** - use feature branches
-- **Branch naming**: `feature/add-cliff-sensors`, `fix/motor-timeout`, `refactor/sensor-interface`
 - **Commit messages**: Use gitmoji + imperative mood
   - `:sparkles: Add emotional state machine`
   - `:bug: Fix cliff sensor false positives`
@@ -282,7 +410,14 @@ func TestEmotionalState_UpdateMood(t *testing.T) {
 
 ## Hardware Considerations
 
-- **Raspberry Pi GPIO**: Use a library like `periph.io` for GPIO access
+### ESP32 Face Display
+- **Display**: GC9A01 240x240 round TFT
+- **Wiring**: MOSI=23, SCLK=18, CS=5, DC=2, RST=4
+- **Known issue**: Screen flicker due to full-screen clear (no framebuffer - ESP32 WROOM has 114KB, needs 115KB)
+- **Workaround options**: Partial updates, smaller sprites, or upgrade to ESP32-S3 with PSRAM
+
+### Raspberry Pi
+- **GPIO**: Use a library like `periph.io` for GPIO access
 - **Cross-compile**: Build on dev machine, deploy to Pi
 - **Sensor polling**: Keep it fast - safety sensors need <50ms response
 - **Power management**: Monitor battery, graceful shutdown on low power
@@ -293,35 +428,91 @@ func TestEmotionalState_UpdateMood(t *testing.T) {
 
 Keep dependencies minimal. Prefer standard library when reasonable.
 
-**Approved dependencies:**
+**Go (Brain/Body):**
 - `periph.io` - GPIO/hardware access
 - `gocv.io/x/gocv` - OpenCV bindings
 - `github.com/charmbracelet/bubbletea` - TUI for debug interface
 - `go.uber.org/zap` - structured logging
 
+**ESP32 (Face Display):**
+- `TFT_eSPI` - Display driver
+- `ArduinoJson` - JSON parsing for API responses
+
 **For ML inference:** Shell out to Python or use TFLite Go bindings.
 
 ---
 
-## JSON Schemas
+## API Reference
 
-All sensor input and action output uses JSON. Keep schemas in `configs/schemas/`.
+### GET /api/state
+Returns current emotional state.
 
 ```json
-// Sensor event example
 {
-  "type": "sound",
-  "subtype": "loud_noise",
-  "amplitude": 0.85,
-  "timestamp": "2026-02-01T10:30:00Z"
+  "mood": "startled",
+  "intensity": 0.9,
+  "duration_ms": 1234,
+  "face_emotion": "scared",
+  "emotion_index": 16,
+  "action": "freeze",
+  "action_age_ms": 500
 }
+```
 
-// Action output example  
+### POST /api/event
+Send a sensor event to the brain.
+
+**Request:**
+```json
 {
-  "actions": [
-    {"type": "movement", "action": "stop"},
-    {"type": "expression", "action": "crouch"},
-    {"type": "sound", "action": "whimper"}
-  ]
+  "event": "loud_noise",
+  "intensity": 0.9,
+  "source": "microphone",
+  "metadata": {}
 }
+```
+
+**Response:**
+```json
+{
+  "accepted": true,
+  "mood_changed": true,
+  "mood": "startled",
+  "intensity": 0.9,
+  "face_emotion": "scared",
+  "emotion_index": 16
+}
+```
+
+### GET /health
+Returns `ok` if server is running.
+
+---
+
+## CI/CD (Gitea Actions)
+
+The brain server auto-deploys on every push to main:
+
+1. Push to `main` branch triggers workflow
+2. Gitea Actions runner (on theserver) builds Docker image
+3. Container restarts with new code
+
+**Workflow file:** `.gitea/workflows/deploy.yml`
+
+**Manual event testing:**
+```bash
+# Scare Koji
+curl -X POST http://192.168.1.41:8585/api/event \
+  -H "Content-Type: application/json" \
+  -d '{"event": "loud_noise", "intensity": 0.9}'
+
+# Make Koji happy
+curl -X POST http://192.168.1.41:8585/api/event \
+  -H "Content-Type: application/json" \
+  -d '{"event": "music", "intensity": 0.8}'
+
+# Pet Koji
+curl -X POST http://192.168.1.41:8585/api/event \
+  -H "Content-Type: application/json" \
+  -d '{"event": "petted", "intensity": 0.7}'
 ```
