@@ -1,6 +1,8 @@
 name: Deploy Koji Brain
 
 on:
+  push:
+    branches: [main]
   release:
     types: [published]
   # Also allow manual trigger
