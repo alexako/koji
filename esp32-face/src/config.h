@@ -20,7 +20,7 @@
 // Brain server URL
 // This should be the IP/hostname of the machine running the brain server
 #ifndef BRAIN_URL
-#define BRAIN_URL "http://192.168.1.100:8080/api/state"
+#define BRAIN_URL "http://192.168.1.41:8585/api/state"
 #endif
 
 // How often to poll the brain server (milliseconds)
