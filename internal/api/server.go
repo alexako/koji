@@ -71,10 +71,14 @@ type EventRequest struct {
 }
 
 // EventResponse is the JSON response for POST /api/event.
+// Includes full state so the ESP32 can react immediately without a second request.
 type EventResponse struct {
-	Accepted    bool   `json:"accepted"`
-	MoodChanged bool   `json:"mood_changed"`
-	NewMood     string `json:"new_mood,omitempty"`
+	Accepted     bool    `json:"accepted"`
+	MoodChanged  bool    `json:"mood_changed"`
+	Mood         string  `json:"mood"`
+	Intensity    float64 `json:"intensity"`
+	FaceEmotion  string  `json:"face_emotion"`
+	EmotionIndex int     `json:"emotion_index"`
 }
 
 // Start begins serving the API.
@@ -178,20 +182,21 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 		moodChanged = s.eventHandler.HandleEvent(ctx)
 	}
 
+	// Build response with full state for immediate reaction
+	state := s.provider.GetState()
+	faceEmotion := state.ToFaceEmotion()
+
 	resp := EventResponse{
-		Accepted:    true,
-		MoodChanged: moodChanged,
+		Accepted:     true,
+		MoodChanged:  moodChanged,
+		Mood:         string(state.CurrentMood),
+		Intensity:    float64(state.Intensity),
+		FaceEmotion:  string(faceEmotion),
+		EmotionIndex: faceEmotion.Index(),
 	}
 
-	if moodChanged && s.provider != nil {
-		state := s.provider.GetState()
-		if state != nil {
-			resp.NewMood = string(state.CurrentMood)
-		}
-	}
-
-	log.Printf("Event received: %s (intensity=%.2f, source=%s) -> mood_changed=%v",
-		req.Event, ctx.Intensity, req.Source, moodChanged)
+	log.Printf("Event received: %s (intensity=%.2f, source=%s) -> mood_changed=%v, emotion=%s",
+		req.Event, ctx.Intensity, req.Source, moodChanged, faceEmotion)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

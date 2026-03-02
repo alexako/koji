@@ -1,0 +1,22 @@
+name: Deploy Koji Brain
+
+on:
+  release:
+    types: [published]
+  # Also allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    # Runs directly on theserver via local act_runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and deploy
+        run: |
+          cd ${{ github.workspace }}
+          docker compose up -d --build
+          docker compose ps
+          echo "Deployed version: ${{ github.ref_name }}"
