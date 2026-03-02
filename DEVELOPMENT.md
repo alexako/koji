@@ -15,11 +15,16 @@
 ### Tasks
 - [x] Design LLM system prompt for Koji's personality
 - [x] Build CLI simulator that accepts fake sensor input
-- [ ] Define JSON schema for sensor input and action output
+- [x] Define JSON schema for sensor input and action output
 - [x] Implement emotional state machine (mood persistence, decay, transitions)
 - [x] Implement action vocabulary (constrained outputs)
 - [x] Test various scenarios (loud noise, music, familiar face, stranger)
 - [x] Implement variation engine (weighted random, micro-behaviors, mood echoes)
+- [x] Build brain server with HTTP API
+- [x] Implement mood-to-face-emotion mapping (18 ESP32 emotions)
+- [x] Deploy brain server on theserver with Docker
+- [x] Set up CI/CD with Gitea Actions
+- [x] ESP32 face display polling brain for emotional state
 - [ ] Tune personality until it feels right
 - [ ] Benchmark local LLM options (Llama 3.2 1B vs Phi-3-mini vs Llama 3.2 3B)
 - [ ] Design cloud filter prompt ("is this novel enough?")
@@ -55,13 +60,22 @@ Instead of asking an LLM to pick actions, the variation engine uses:
 - **Mood echoes**: Past moods bleed into current behavior (still jumpy after being scared)
 
 ### Deliverable
-A terminal app where you can type sensor events and get believable pet reactions. Should validate:
-1. Emotional state transitions feel natural
-2. Variation engine produces lifelike, non-repetitive behavior
-3. Action vocabulary covers needed behaviors
-4. Mood echoes create realistic recovery from emotional states
-5. (Optional) Local LLM responses are fast enough (<500ms) for complex situations
-6. (Optional) Cloud filter correctly identifies novel vs routine situations
+~~A terminal app where you can type sensor events and get believable pet reactions.~~
+
+**COMPLETED:** Brain server running on theserver with:
+- HTTP API for emotional state (`GET /api/state`)
+- Event handling (`POST /api/event`)
+- Mood decay loop
+- ESP32 face display polling and showing emotions
+- CI/CD auto-deploy on push to main
+
+Validates:
+1. ✅ Emotional state transitions feel natural
+2. ✅ Variation engine produces lifelike, non-repetitive behavior
+3. ✅ Action vocabulary covers needed behaviors
+4. ✅ Mood echoes create realistic recovery from emotional states
+5. (Deferred) Local LLM responses - variation engine handles most cases
+6. (Deferred) Cloud filter - not needed yet
 
 ---
 
@@ -409,6 +423,9 @@ Custom 3D printed chassis is the plan. Parts to design/print:
 | 2026-02 | ESP32-WROOM-32E for low brain | Classic ESP32 has more ADC channels (18) and PWM (16) than newer variants. Best documented, most libraries. RISC-V variants (C3, C6) have fewer analog pins. |
 | 2026-02 | Pi 5 4GB (not 8GB) for high brain | With GPIO offloaded to ESP32, 4GB is sufficient. LLM is optional/rare now that variation engine handles most decisions. Save $20. |
 | 2026-02 | 3D printed chassis | Custom fit for all components, can iterate on design, proper creature aesthetic instead of robot kit look. |
+| 2026-03 | Brain on theserver, not Pi | Simpler architecture - brain runs on home server, ESP32 handles face display, sensors can run anywhere and POST events. No Pi needed for initial prototype. |
+| 2026-03 | Gitea Actions CI/CD | Auto-deploy brain server on every push to main. Runner on theserver builds and deploys Docker container. |
+| 2026-03 | Polling over WebSockets | ESP32 polls `/api/state` every 500ms. Simple, reliable, no persistent connection management needed. |
 
 ---
 
