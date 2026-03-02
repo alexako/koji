@@ -3,3 +3,6 @@
 .idea/
 *.swp
 *.swo
+
+# Local config with WiFi credentials
+src/config_local.h
