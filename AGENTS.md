@@ -411,10 +411,25 @@ func TestEmotionalState_UpdateMood(t *testing.T) {
 ## Hardware Considerations
 
 ### ESP32 Face Display
+- **Board**: Seeed XIAO ESP32-S3 (8MB PSRAM, 8MB Flash)
 - **Display**: GC9A01 240x240 round TFT
+- **Wiring (XIAO ESP32-S3)**:
+  | Display Pin | XIAO Pin | GPIO |
+  |-------------|----------|------|
+  | SDA (MOSI)  | D9       | 8    |
+  | SCL (SCLK)  | D8       | 7    |
+  | DC          | D1       | 2    |
+  | CS          | D2       | 3    |
+  | RST         | D3       | 4    |
+  | VCC         | 3V3      | -    |
+  | GND         | GND      | -    |
+- **Double buffering**: Enabled via PSRAM - no more flicker!
+- **Build command**: `pio run -e xiao_esp32s3 -t upload`
+
+### Legacy ESP32 WROOM (deprecated)
 - **Wiring**: MOSI=23, SCLK=18, CS=5, DC=2, RST=4
-- **Known issue**: Screen flicker due to full-screen clear (no framebuffer - ESP32 WROOM has 114KB, needs 115KB)
-- **Workaround options**: Partial updates, smaller sprites, or upgrade to ESP32-S3 with PSRAM
+- **Known issue**: Screen flicker due to insufficient RAM for framebuffer (has 114KB, needs 115KB)
+- **Build command**: `pio run -e esp32dev -t upload`
 
 ### Raspberry Pi
 - **GPIO**: Use a library like `periph.io` for GPIO access

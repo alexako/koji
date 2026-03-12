@@ -91,48 +91,48 @@ class EyeDrawer {
 
       if (corner == T_R) {
         for(x = 0, y = ry, s = 2 * ry2 + rx2 * (1 - 2 * ry); ry2 * x <= rx2 * y; x++) {
-          tft.drawFastHLine(x0, y0 - y, x, color);
+          DRAW_TARGET.drawFastHLine(x0, y0 - y, x, color);
           if(s >= 0) { s += fx2 * (1 - y); y--; }
           s += ry2 * ((4 * x) + 6);
         }         
         for(x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++) {
-          tft.drawFastHLine(x0, y0 - y, x, color);
+          DRAW_TARGET.drawFastHLine(x0, y0 - y, x, color);
           if (s >= 0) { s += fy2 * (1 - x); x--; }
           s += rx2 * ((4 * y) + 6);
         }
       }
       else if (corner == B_R) {
         for (x = 0, y = ry, s = 2 * ry2 + rx2 * (1 - 2 * ry); ry2 * x <= rx2 * y; x++) {
-          tft.drawFastHLine(x0, y0 + y - 1, x, color);
+          DRAW_TARGET.drawFastHLine(x0, y0 + y - 1, x, color);
           if (s >= 0) { s += fx2 * (1 - y); y--; }
           s += ry2 * ((4 * x) + 6);
         }
         for (x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++) {
-          tft.drawFastHLine(x0, y0 + y - 1, x, color);
+          DRAW_TARGET.drawFastHLine(x0, y0 + y - 1, x, color);
           if (s >= 0) { s += fy2 * (1 - x); x--; }
           s += rx2 * ((4 * y) + 6);
         }
       }
       else if (corner == T_L) {
         for (x = 0, y = ry, s = 2 * ry2 + rx2 * (1 - 2 * ry); ry2 * x <= rx2 * y; x++) {
-          tft.drawFastHLine(x0 - x, y0 - y, x, color);
+          DRAW_TARGET.drawFastHLine(x0 - x, y0 - y, x, color);
           if (s >= 0) { s += fx2 * (1 - y); y--; }
           s += ry2 * ((4 * x) + 6);
         }
         for (x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++) {
-          tft.drawFastHLine(x0 - x, y0 - y, x, color);
+          DRAW_TARGET.drawFastHLine(x0 - x, y0 - y, x, color);
           if (s >= 0) { s += fy2 * (1 - x); x--; }
           s += rx2 * ((4 * y) + 6);
         }
       }
       else if (corner == B_L) {
         for (x = 0, y = ry, s = 2 * ry2 + rx2 * (1 - 2 * ry); ry2 * x <= rx2 * y; x++) {
-          tft.drawFastHLine(x0 - x, y0 + y - 1, x, color);
+          DRAW_TARGET.drawFastHLine(x0 - x, y0 + y - 1, x, color);
           if (s >= 0) { s += fx2 * (1 - y); y--; }
           s += ry2 * ((4 * x) + 6);
         }
         for (x = rx, y = 0, s = 2 * rx2 + ry2 * (1 - 2 * rx); rx2 * y <= ry2 * x; y++) {
-          tft.drawFastHLine(x0 - x, y0 + y, x, color);
+          DRAW_TARGET.drawFastHLine(x0 - x, y0 + y, x, color);
           if (s >= 0) { s += fy2 * (1 - x); x--; }
           s += rx2 * ((4 * y) + 6);
         }
@@ -146,15 +146,15 @@ class EyeDrawer {
       int32_t b = max(y0, y1);
       int32_t w = r - l;
       int32_t h = b - t; 
-      tft.fillRect(l, t, w, h, color);
+      DRAW_TARGET.fillRect(l, t, w, h, color);
     }
 
     static void FillRectangularTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t color) {
-      tft.fillTriangle(x0, y0, x1, y1, x1, y0, color);
+      DRAW_TARGET.fillTriangle(x0, y0, x1, y1, x1, y0, color);
     }
 
     static void FillTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint16_t color) {
-      tft.fillTriangle(x0, y0, x1, y1, x2, y2, color);
+      DRAW_TARGET.fillTriangle(x0, y0, x1, y1, x2, y2, color);
     }
 };
 
