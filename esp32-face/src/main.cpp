@@ -18,6 +18,11 @@
 #endif
 
 TFT_eSPI tft = TFT_eSPI();
+
+#ifdef USE_DOUBLE_BUFFER
+TFT_eSprite frameBuffer = TFT_eSprite(&tft);
+#endif
+
 Face *face;
 unsigned long lastPoll = 0;
 eEmotions currentEmotion = eEmotions::Normal;
@@ -112,6 +117,13 @@ void setup(void) {
   tft.setRotation(0);
   tft.fillScreen(TFT_BLACK);
 
+#ifdef USE_DOUBLE_BUFFER
+  // Create sprite in PSRAM for double buffering
+  frameBuffer.createSprite(SCREEN_WIDTH, SCREEN_HEIGHT);
+  frameBuffer.fillSprite(TFT_BLACK);
+  Serial.println("Double buffering enabled (PSRAM)");
+#endif
+
   // Initialize face
   face = new Face(SCREEN_WIDTH, SCREEN_HEIGHT, EYE_SIZE);
   
@@ -137,7 +149,13 @@ void loop() {
   }
 
   // Update display
+#ifdef USE_DOUBLE_BUFFER
+  frameBuffer.fillSprite(TFT_BLACK);
+  face->Update();
+  frameBuffer.pushSprite(0, 0);
+#else
   tft.fillScreen(TFT_BLACK);
   face->Update();
+#endif
   delay(30);
 }
