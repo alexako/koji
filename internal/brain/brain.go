@@ -4,6 +4,7 @@ package brain
 import (
 	"context"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -17,16 +18,19 @@ type Brain struct {
 	mu           sync.RWMutex
 	recentEvents []personality.Event
 	lastAction   string
+	lastEventAt  time.Time // tracks when we last got external stimulus
 
 	// Configuration
 	decayInterval time.Duration
 	maxEvents     int
+	idleEnabled   bool // enable puppy-like idle behavior
 }
 
 // Config holds configuration for the Brain.
 type Config struct {
 	DecayInterval time.Duration // How often to check for mood decay
 	MaxEvents     int           // How many recent events to remember
+	IdleEnabled   bool          // Enable puppy-like idle behavior (sleepy/curious cycling)
 }
 
 // DefaultConfig returns sensible defaults.
@@ -34,6 +38,7 @@ func DefaultConfig() Config {
 	return Config{
 		DecayInterval: 1 * time.Second,
 		MaxEvents:     10,
+		IdleEnabled:   true,
 	}
 }
 
@@ -42,8 +47,10 @@ func New(cfg Config) *Brain {
 	return &Brain{
 		state:         personality.NewEmotionalState(),
 		recentEvents:  make([]personality.Event, 0, cfg.MaxEvents),
+		lastEventAt:   time.Now(),
 		decayInterval: cfg.DecayInterval,
 		maxEvents:     cfg.MaxEvents,
+		idleEnabled:   cfg.IdleEnabled,
 	}
 }
 
@@ -71,6 +78,9 @@ func (b *Brain) HandleEvent(ctx personality.EventContext) bool {
 	if len(b.recentEvents) > b.maxEvents {
 		b.recentEvents = b.recentEvents[1:]
 	}
+
+	// Update last event time (for idle behavior)
+	b.lastEventAt = time.Now()
 
 	// Process the event through the state machine
 	changed := b.state.ProcessEvent(ctx)
@@ -100,11 +110,23 @@ func (b *Brain) RecentEvents() []personality.Event {
 	return events
 }
 
+// Idle behavior constants - like a puppy dozing off then perking up
+const (
+	idleCheckInterval = 5 * time.Second  // how often to check for idle behavior
+	idleMinQuietTime  = 30 * time.Second // minimum quiet time before getting sleepy
+	idleSleepyChance  = 0.15             // chance per check to get sleepy when idle
+	idlePerkUpChance  = 0.20             // chance per check to perk back up when sleepy
+	idleMinSleepyTime = 10 * time.Second // minimum time before perking up
+)
+
 // Run starts the brain's main loop (decay timer, etc).
 // Blocks until context is cancelled.
 func (b *Brain) Run(ctx context.Context) error {
-	ticker := time.NewTicker(b.decayInterval)
-	defer ticker.Stop()
+	decayTicker := time.NewTicker(b.decayInterval)
+	defer decayTicker.Stop()
+
+	idleTicker := time.NewTicker(idleCheckInterval)
+	defer idleTicker.Stop()
 
 	log.Printf("Brain started: mood=%s, decay_interval=%s",
 		b.state.CurrentMood, b.decayInterval)
@@ -115,13 +137,44 @@ func (b *Brain) Run(ctx context.Context) error {
 			log.Println("Brain shutting down")
 			return ctx.Err()
 
-		case <-ticker.C:
+		case <-decayTicker.C:
 			b.mu.Lock()
 			if b.state.Decay() {
 				log.Printf("Mood decayed to %s (intensity=%.2f)",
 					b.state.CurrentMood, b.state.Intensity)
 			}
 			b.mu.Unlock()
+
+		case <-idleTicker.C:
+			if b.idleEnabled {
+				b.checkIdleBehavior()
+			}
+		}
+	}
+}
+
+// checkIdleBehavior implements puppy-like behavior: getting sleepy when idle,
+// then randomly perking back up to curious.
+func (b *Brain) checkIdleBehavior() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	timeSinceEvent := time.Since(b.lastEventAt)
+	currentMood := b.state.CurrentMood
+
+	switch currentMood {
+	case personality.MoodCurious:
+		// If it's been quiet and we're just curious, maybe get sleepy
+		if timeSinceEvent > idleMinQuietTime && rand.Float64() < idleSleepyChance {
+			b.state.SetMood(personality.MoodSleepy, personality.IntensityLow)
+			log.Printf("Idle: getting sleepy (quiet for %s)", timeSinceEvent.Round(time.Second))
+		}
+
+	case personality.MoodSleepy:
+		// If we've been sleepy for a bit, maybe perk back up
+		if b.state.Duration() > idleMinSleepyTime && rand.Float64() < idlePerkUpChance {
+			b.state.SetMood(personality.MoodCurious, personality.IntensityMedium)
+			log.Printf("Idle: perking up! (was sleepy for %s)", b.state.Duration().Round(time.Second))
 		}
 	}
 }
