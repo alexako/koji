@@ -40,6 +40,25 @@ var transitionTable = map[Event]map[Mood]MoodTransition{
 		MoodExcited: {MoodExcited, IntensityHigh}, // keep dancing
 	},
 
+	// Someone said "Koji" - that's me!
+	EventNameCalled: {
+		MoodCurious:    {MoodExcited, IntensityHigh},    // someone wants me!
+		MoodSleepy:     {MoodCurious, IntensityMedium},  // huh? oh hi!
+		MoodHappy:      {MoodExcited, IntensityHigh},    // yes that's me!
+		MoodCautious:   {MoodCurious, IntensityMedium},  // oh, you're friendly
+		MoodFrightened: {MoodCautious, IntensityLow},    // a familiar voice helps
+		MoodStartled:   {MoodCautious, IntensityMedium}, // oh it's just you
+		MoodExcited:    {MoodExcited, IntensityHigh},    // still excited!
+	},
+
+	// General speech detected
+	EventSpeech: {
+		MoodCurious:    {MoodCurious, IntensityMedium}, // hmm, people talking
+		MoodSleepy:     {MoodCurious, IntensityLow},    // voices in the background
+		MoodCautious:   {MoodCurious, IntensityLow},    // seems safe
+		MoodFrightened: {MoodCautious, IntensityLow},   // calming effect
+	},
+
 	// Familiar face is comforting
 	EventFamiliarFace: {
 		MoodCurious:    {MoodHappy, IntensityMedium},
@@ -116,16 +135,16 @@ var transitionTable = map[Event]map[Mood]MoodTransition{
 	},
 }
 
-// decayPaths defines how moods decay toward baseline over time.
-// Each mood decays to the next mood in its path, eventually reaching curious.
+// decayPaths defines how moods decay over time.
+// Curious and sleepy cycle: curious -> sleepy -> curious
 var decayPaths = map[Mood]Mood{
 	MoodFrightened: MoodCautious,
 	MoodCautious:   MoodCurious,
 	MoodStartled:   MoodCautious,
 	MoodExcited:    MoodHappy,
 	MoodHappy:      MoodCurious,
-	MoodSleepy:     MoodCurious,
-	MoodCurious:    MoodCurious, // baseline, no decay
+	MoodCurious:    MoodSleepy,  // after an hour of nothing, get sleepy
+	MoodSleepy:     MoodCurious, // after sleeping, wake up curious
 }
 
 // decayTimes defines how long before a mood decays to the next state.
@@ -135,7 +154,8 @@ var decayTimes = map[Mood]time.Duration{
 	MoodCautious:   20 * time.Second,
 	MoodExcited:    30 * time.Second,
 	MoodHappy:      45 * time.Second,
-	MoodSleepy:     60 * time.Second,
+	MoodCurious:    1 * time.Hour, // doze off after an hour
+	MoodSleepy:     3 * time.Hour, // sleep for a few hours
 }
 
 // ProcessEvent updates the emotional state based on an incoming event.
@@ -164,13 +184,10 @@ func (e *EmotionalState) ProcessEvent(ctx EventContext) bool {
 	return oldMood != e.CurrentMood
 }
 
-// Decay checks if enough time has passed and decays the mood toward baseline.
+// Decay checks if enough time has passed and decays the mood to the next state.
+// Moods follow a decay path: frightened -> cautious -> curious -> sleepy -> curious (cycle).
 // Returns true if the mood changed.
 func (e *EmotionalState) Decay() bool {
-	if e.IsBaseline() {
-		return false
-	}
-
 	decayTime, ok := decayTimes[e.CurrentMood]
 	if !ok {
 		return false
