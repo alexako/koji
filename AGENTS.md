@@ -213,12 +213,14 @@ EventTimePassedShort, EventTimePassedMedium, EventTimePassedLong
 ```
 
 ### Mood Decay
-Moods decay toward baseline (curious) over time:
+Moods decay in a cycle over time:
 - Startled → Cautious (5s) → Curious (20s)
 - Frightened → Cautious (15s) → Curious (20s)
 - Excited → Happy (30s) → Curious (45s)
 - Happy → Curious (45s)
-- Sleepy → Curious (60s)
+- Curious → Sleepy (1 hour) → Curious (3 hours) → repeat
+
+**Idle cycle:** When left alone, Koji will be curious for about an hour, then sleep for about 3 hours, then wake up curious again. Events interrupt this cycle and moods decay back to curious before the cycle resumes.
 
 ---
 

@@ -5,11 +5,12 @@ type Event string
 
 const (
 	// Sound events
-	EventLoudNoise Event = "loud_noise"
-	EventMusic     Event = "music"
-	EventSpeech    Event = "speech"
-	EventSilence   Event = "silence"
-	EventRhythm    Event = "rhythm" // beat detected
+	EventLoudNoise  Event = "loud_noise"
+	EventMusic      Event = "music"
+	EventSpeech     Event = "speech"
+	EventSilence    Event = "silence"
+	EventRhythm     Event = "rhythm"      // beat detected
+	EventNameCalled Event = "name_called" // someone said "Koji"
 
 	// Vision events
 	EventFamiliarFace   Event = "familiar_face"
