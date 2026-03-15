@@ -142,17 +142,39 @@ func TestDecay_NoDecayBeforeTime(t *testing.T) {
 	}
 }
 
-func TestDecay_BaselineNoDecay(t *testing.T) {
+func TestDecay_CuriousToSleepyCycle(t *testing.T) {
 	state := NewEmotionalState()
-	state.EnteredAt = time.Now().Add(-5 * time.Minute) // long time
+	state.EnteredAt = time.Now().Add(-5 * time.Minute) // only 5 minutes
 
 	changed := state.Decay()
 
 	if changed {
-		t.Error("expected no decay at baseline")
+		t.Error("expected no decay after only 5 minutes (need 1 hour)")
 	}
 	if state.CurrentMood != MoodCurious {
-		t.Errorf("baseline mood changed unexpectedly to %s", state.CurrentMood)
+		t.Errorf("mood changed unexpectedly to %s", state.CurrentMood)
+	}
+
+	// Now simulate 1 hour passing - should decay to sleepy
+	state.EnteredAt = time.Now().Add(-61 * time.Minute)
+	changed = state.Decay()
+
+	if !changed {
+		t.Error("expected decay to sleepy after 1 hour")
+	}
+	if state.CurrentMood != MoodSleepy {
+		t.Errorf("expected sleepy, got %s", state.CurrentMood)
+	}
+
+	// Sleepy should decay back to curious after 3 hours
+	state.EnteredAt = time.Now().Add(-4 * time.Hour)
+	changed = state.Decay()
+
+	if !changed {
+		t.Error("expected decay from sleepy to curious")
+	}
+	if state.CurrentMood != MoodCurious {
+		t.Errorf("expected curious, got %s", state.CurrentMood)
 	}
 }
 
@@ -203,6 +225,14 @@ func TestProcessEvent_Scenarios(t *testing.T) {
 		{"sleepy + unknown object = curious", MoodSleepy, EventUnknownObject, MoodCurious, true},
 		{"frightened + unknown object = cautious", MoodFrightened, EventUnknownObject, MoodCautious, true},
 		{"cautious + unknown object = curious", MoodCautious, EventUnknownObject, MoodCurious, true},
+		// Name called - someone said "Koji"!
+		{"curious + name called = excited", MoodCurious, EventNameCalled, MoodExcited, true},
+		{"sleepy + name called = curious", MoodSleepy, EventNameCalled, MoodCurious, true},
+		{"frightened + name called = cautious", MoodFrightened, EventNameCalled, MoodCautious, true},
+		{"happy + name called = excited", MoodHappy, EventNameCalled, MoodExcited, true},
+		// General speech
+		{"frightened + speech = cautious", MoodFrightened, EventSpeech, MoodCautious, true},
+		{"sleepy + speech = curious", MoodSleepy, EventSpeech, MoodCurious, true},
 	}
 
 	for _, tt := range tests {
